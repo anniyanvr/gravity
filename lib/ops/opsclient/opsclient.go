@@ -1185,6 +1185,19 @@ func (c *Client) UpdateClusterConfiguration(req ops.UpdateClusterConfigRequest) 
 	return nil
 }
 
+// GetPersistentStorage retrieves cluster persistent storage configuration.
+func (c *Client) GetPersistentStorage(ctx context.Context, key ops.SiteKey) (storage.PersistentStorage, error) {
+	response, err := c.Get(c.Endpoint("accounts", key.AccountID, "sites", key.SiteDomain, "persistentstorage"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ps, err := storage.UnmarshalPersistentStorage(response.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ps, nil
+}
+
 func (c *Client) GetApplicationEndpoints(key ops.SiteKey) ([]ops.Endpoint, error) {
 	out, err := c.Get(c.Endpoint("accounts", key.AccountID, "sites", key.SiteDomain, "endpoints"), url.Values{})
 	if err != nil {

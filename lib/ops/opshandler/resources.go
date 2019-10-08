@@ -316,6 +316,23 @@ func (h *WebHandler) deleteGithubConnector(w http.ResponseWriter, r *http.Reques
 	return nil
 }
 
+/* getPersistentStorage retrieves cluster persistent storage configuration.
+
+     GET /portal/v1/accounts/:account_id/sites/:site_domain/persistentstorage
+
+   Success response:
+
+     storage.PersistentStorage
+*/
+func (h *WebHandler) getPersistentStorage(w http.ResponseWriter, r *http.Request, p httprouter.Params, context *HandlerContext) error {
+	ps, err := context.Operator.GetPersistentStorage(r.Context(), siteKey(p))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	bytes, err := storage.MarshalPersistentStorage(ps)
+	return rawMessage(w, bytes, err)
+}
+
 func rawMessage(w http.ResponseWriter, data []byte, err error) error {
 	if err != nil {
 		return trace.Wrap(err)

@@ -395,6 +395,12 @@ func (r *Resources) GetCollection(req resources.ListRequest) (resources.Collecti
 			return nil, trace.Wrap(err)
 		}
 		return configCollection{Interface: config}, nil
+	case storage.KindPersistentStorage:
+		ps, err := r.Operator.GetPersistentStorage(context.TODO(), req.SiteKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return storageCollection{PersistentStorage: ps}, nil
 	case "":
 		return nil, trace.BadParameter("missing resource kind")
 	}
@@ -540,6 +546,8 @@ func Validate(resource storage.UnknownResource) (err error) {
 		_, err = storage.UnmarshalEnvironmentVariables(resource.Raw)
 	case storage.KindClusterConfiguration:
 		_, err = clusterconfig.Unmarshal(resource.Raw)
+	case storage.KindPersistentStorage:
+		_, err = storage.UnmarshalPersistentStorage(resource.Raw)
 	default:
 		return trace.NotImplemented("unsupported resource %q, supported are: %v",
 			resource.Kind, modules.GetResources().SupportedResources())

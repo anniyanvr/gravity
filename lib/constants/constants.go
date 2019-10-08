@@ -553,6 +553,10 @@ const (
 	// ClusterConfigurationMap is the name of the ConfigMap that hosts cluster configuration resource
 	ClusterConfigurationMap = "cluster-configuration"
 
+	// OpenEBSNDMMap is the name of the ConfigMap with OpenEBS node device
+	// manager configuration.
+	OpenEBSNDMMap = "openebs-ndm-config"
+
 	// ClusterInfoMap is the name of the ConfigMap that contains cluster information.
 	ClusterInfoMap = "cluster-info"
 	// ClusterNameEnv is the environment variable that contains cluster domain name.

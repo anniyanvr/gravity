@@ -77,6 +77,9 @@ type PlanBuilder struct {
 	gravityResources []storage.UnknownResource
 	// InstallerTrustedCluster represents the trusted cluster for installer process
 	InstallerTrustedCluster storage.TrustedCluster
+	// PersistentStorage is persistent storage resource optionally provided by
+	// user at install time.
+	PersistentStorage storage.PersistentStorage
 }
 
 // AddInitPhase appends initialization phase to the provided plan
@@ -347,6 +350,22 @@ func (b *PlanBuilder) AddRBACPhase(plan *storage.OperationPlan) {
 			Package: &b.RBACPackage,
 		},
 		Requires: []string{phases.WaitPhase},
+		Step:     4,
+	})
+}
+
+// AddOpenEBSPhase appends phase that creates OpenEBS configuration.
+func (b *PlanBuilder) AddOpenEBSPhase(plan *storage.OperationPlan) {
+	plan.Phases = append(plan.Phases, storage.OperationPhase{
+		ID:          phases.OpenEBSPhase,
+		Description: "Create OpenEBS configuration",
+		Data: &storage.OperationPhaseData{
+			Server: &b.Master,
+			Install: &storage.InstallOperationData{
+				PersistentStorage: b.PersistentStorage,
+			},
+		},
+		Requires: []string{phases.RBACPhase},
 		Step:     4,
 	})
 }
@@ -730,6 +749,14 @@ func addResources(builder *PlanBuilder, resourceBytes []byte, runtimeResources [
 			builder.config = res.Raw
 			configmap := opsservice.NewConfigurationConfigMap(res.Raw)
 			kubernetesResources = append(kubernetesResources, configmap)
+		case storage.KindPersistentStorage:
+			// If custom persistent storage configuration was provided by user,
+			// it will get applied to the default configuration during install.
+			ps, err := storage.UnmarshalPersistentStorage(res.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			builder.PersistentStorage = ps
 		default:
 			// Filter out resources that are created using the regular workflow
 			rest = append(rest, res)

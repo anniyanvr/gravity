@@ -215,6 +215,8 @@ type InstallOperationData struct {
 	Resources []byte `json:"resources,omitempty"`
 	// GravityResources specifies optional Gravity resources to create upon successful installation
 	GravityResources []UnknownResource `json:"gravity_resources,omitempty"`
+	// PersistentStorage is optional persistent storage configuration provided by user at install time.
+	PersistentStorage PersistentStorage `json:"persistent_storage,omitempty"`
 }
 
 // Application describes an application for the package cleaner

@@ -82,6 +82,12 @@ func (r *Planner) GetOperationPlan(operator ops.Operator, cluster ops.Site, oper
 	builder.AddRBACPhase(plan)
 	builder.AddCorednsPhase(plan)
 
+	// create OpenEBS configuration if it's enabled, it has to be done
+	// before OpenEBS is installed during the runtime phase
+	if cluster.App.Manifest.OpenEBSEnabled() {
+		builder.AddOpenEBSPhase(plan)
+	}
+
 	// create system and user-supplied Kubernetes resources
 	builder.AddSystemResourcesPhase(plan)
 	builder.AddUserResourcesPhase(plan)
