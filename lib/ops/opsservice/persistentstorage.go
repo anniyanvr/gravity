@@ -18,6 +18,8 @@ package opsservice
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
@@ -27,20 +29,18 @@ import (
 	"github.com/gravitational/rigging"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 // GetPersistentStorage retrieves the current persistent storage configuration.
 func (o *Operator) GetPersistentStorage(ctx context.Context, key ops.SiteKey) (storage.PersistentStorage, error) {
-	client, err := o.GetKubeClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if o.cfg.OpenEBS == nil {
+		return nil, trace.BadParameter("persistent storage is not configured")
 	}
-	cm, err := client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Get(
-		constants.OpenEBSNDMMap, metav1.GetOptions{})
-	if err != nil {
-		return nil, rigging.ConvertError(err)
-	}
-	ndmConfig, err := storage.NDMConfigFromConfigMap(cm)
+	ndmConfig, err := o.cfg.OpenEBS.GetNDMConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -49,27 +49,118 @@ func (o *Operator) GetPersistentStorage(ctx context.Context, key ops.SiteKey) (s
 
 // UpdatePersistentStorage updates cluster persistent storage configuration.
 func (o *Operator) UpdatePersistentStorage(ctx context.Context, req ops.UpdatePersistentStorageRequest) error {
-	client, err := o.GetKubeClient()
-	if err != nil {
-		return trace.Wrap(err)
+	if o.cfg.OpenEBS == nil {
+		return trace.BadParameter("persistent storage is not configured")
 	}
-	cm, err := client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Get(
-		constants.OpenEBSNDMMap, metav1.GetOptions{})
-	if err != nil {
-		return rigging.ConvertError(err)
-	}
-	ndmConfig, err := storage.NDMConfigFromConfigMap(cm)
+	ndmConfig, err := o.cfg.OpenEBS.GetNDMConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	ndmConfig.Apply(req.Resource)
-	cm, err = ndmConfig.ToConfigMap()
+	err = o.cfg.OpenEBS.UpdateNDMConfig(ndmConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Update(cm)
+	err = o.cfg.OpenEBS.RestartNDM()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// OpenEBSControl provides interface for managing OpenEBS in the cluster.
+type OpenEBSControl interface {
+	// GetNDMConfig returns node device manager configuration.
+	GetNDMConfig() (*storage.NDMConfig, error)
+	// UpdateNDMConfig updates node device manager configuration.
+	UpdateNDMConfig(*storage.NDMConfig) error
+	// RestartNDM restarts node device manager pods.
+	RestartNDM() error
+}
+
+type openEBSControl struct {
+	// cm is config map interface in the configured namespace.
+	cm corev1.ConfigMapInterface
+	// ds is daemon set interface in the configured namespace.
+	ds appsv1.DaemonSetInterface
+	// name is the node device manager config map name.
+	name string
+}
+
+// OpenEBSConfig is the OpenEBS controller configuration.
+type OpenEBSConfig struct {
+	// Client is the Kubernetes client.
+	Client *kubernetes.Clientset
+	// Namespace is the namespace where OpenEBS components reside.
+	Namespace string
+	// Name is the name of the config map with node device manager configuration.
+	Name string
+}
+
+// CheckAndSetDefaults validates the config and sets defaults.
+func (c *OpenEBSConfig) CheckAndSetDefaults() error {
+	if c.Client == nil {
+		return trace.BadParameter("missing Kubernetes client")
+	}
+	if c.Namespace == "" {
+		c.Namespace = defaults.OpenEBSNamespace
+	}
+	if c.Name == "" {
+		c.Name = constants.OpenEBSNDMMap
+	}
+	return nil
+}
+
+// NewOpenEBSContol returns a new OpenEBS controller for the provided client.
+func NewOpenEBSControl(config OpenEBSConfig) (*openEBSControl, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &openEBSControl{
+		cm:   config.Client.Core().ConfigMaps(config.Namespace),
+		ds:   config.Client.Apps().DaemonSets(config.Namespace),
+		name: config.Name,
+	}, nil
+}
+
+// GetNDMConfig returns node device manager configuration.
+func (c *openEBSControl) GetNDMConfig() (*storage.NDMConfig, error) {
+	cm, err := c.cm.Get(c.name, metav1.GetOptions{})
+	if err != nil {
+		return nil, rigging.ConvertError(err)
+	}
+	config, err := storage.NDMConfigFromConfigMap(cm)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return config, nil
+}
+
+// UpdateNDMConfig updates node device manager configuration.
+func (c *openEBSControl) UpdateNDMConfig(config *storage.NDMConfig) error {
+	cm, err = config.ToConfigMap()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.cm.Update(cm)
 	if err != nil {
 		return rigging.ConvertError(err)
 	}
 	return nil
+}
+
+// RestartNDM restarts node device manager pods.
+func (c *openEBSControl) RestartNDM() error {
+	_, err := c.ds.Patch(c.name, types.StrategicMergePatchType, formatRestartPatch())
+	if err != nil {
+		return rigging.ConvertError(err)
+	}
+	return nil
+}
+
+// formatRestartPatch returns the patch that sets the restartedAt annotation
+// on the daemon set object.
+func formatRestartPatch() []byte {
+	return []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"gravity-site.gravitational.io/restartedAt":"%s"}}}}}`,
+		time.Now().Format(constants.HumanDateFormatSeconds)))
 }
