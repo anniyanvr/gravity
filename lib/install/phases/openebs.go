@@ -39,7 +39,7 @@ func NewOpenEBS(p fsm.ExecutorParams, operator ops.Operator, client *kubernetes.
 		Key:         opKey(p.Plan),
 		Operator:    operator,
 	}
-	return &systemResources{
+	return &openebs{
 		FieldLogger:    logger,
 		ExecutorParams: p,
 		Client:         client,

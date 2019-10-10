@@ -232,7 +232,7 @@ var PersistentStorageSpecV1Schema = `{
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "exclude": {"type": "array", "items": {"type": "string"}},
+                "exclude": {"type": "array", "items": {"type": "string"}}
               }
             },
             "vendors": {
@@ -240,7 +240,7 @@ var PersistentStorageSpecV1Schema = `{
               "additionalProperties": false,
               "properties": {
                 "include": {"type": "array", "items": {"type": "string"}},
-                "exclude": {"type": "array", "items": {"type": "string"}},
+                "exclude": {"type": "array", "items": {"type": "string"}}
               }
             },
             "devices": {
@@ -248,7 +248,7 @@ var PersistentStorageSpecV1Schema = `{
               "additionalProperties": false,
               "properties": {
                 "include": {"type": "array", "items": {"type": "string"}},
-                "exclude": {"type": "array", "items": {"type": "string"}},
+                "exclude": {"type": "array", "items": {"type": "string"}}
               }
             }
           }

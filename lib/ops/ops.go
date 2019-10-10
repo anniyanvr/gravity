@@ -618,6 +618,16 @@ type ClusterConfiguration interface {
 type PersistentStorage interface {
 	// GetPersistentStorage retrieves cluster persistent storage configuration.
 	GetPersistentStorage(context.Context, SiteKey) (storage.PersistentStorage, error)
+	// UpdatePersistentStorage updates cluster persistent storage configuration.
+	UpdatePersistentStorage(context.Context, UpdatePersistentStorageRequest) error
+}
+
+// UpdatePersistentStorageRequest is a request to update cluster persistent storage configuration.
+type UpdatePersistentStorageRequest struct {
+	// SiteKey identifies the cluster.
+	SiteKey
+	// Resource is the new persistent storage configuration resource.
+	Resource storage.PersistentStorage
 }
 
 // ClusterCertificate represents the cluster certificate

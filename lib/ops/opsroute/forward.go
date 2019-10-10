@@ -696,11 +696,20 @@ func (r *Router) UpdateClusterConfiguration(req ops.UpdateClusterConfigRequest) 
 
 // GetPersistentStorage retrieves cluster persistent storage configuration.
 func (r *Router) GetPersistentStorage(ctx context.Context, key ops.SiteKey) (storage.PersistentStorage, error) {
-	client, err := r.RemoteClient(key.SiteDomain)
+	client, err := r.PickClient(key.SiteDomain)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return client.GetPersistentStorage(ctx, key)
+}
+
+// UpdatePersistentStorage updates persistent storage configuration.
+func (r *Router) UpdatePersistentStorage(ctx context.Context, req ops.UpdatePersistentStorageRequest) error {
+	client, err := r.PickClient(req.SiteDomain)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return client.UpdatePersistentStorage(ctx, req)
 }
 
 func (r *Router) GetApplicationEndpoints(key ops.SiteKey) ([]ops.Endpoint, error) {

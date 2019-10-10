@@ -1198,6 +1198,22 @@ func (c *Client) GetPersistentStorage(ctx context.Context, key ops.SiteKey) (sto
 	return ps, nil
 }
 
+// UpdatePersistentStorage updates persistent storage configuration.
+func (c *Client) UpdatePersistentStorage(ctx context.Context, req ops.UpdatePersistentStorageRequest) error {
+	bytes, err := storage.MarshalPersistentStorage(req.Resource)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PutJSON(c.Endpoint("accounts", req.AccountID, "sites", req.SiteDomain, "persistentstorage"),
+		&UpsertResourceRawReq{
+			Resource: bytes,
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func (c *Client) GetApplicationEndpoints(key ops.SiteKey) ([]ops.Endpoint, error) {
 	out, err := c.Get(c.Endpoint("accounts", key.AccountID, "sites", key.SiteDomain, "endpoints"), url.Values{})
 	if err != nil {

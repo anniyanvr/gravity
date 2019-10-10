@@ -46,3 +46,30 @@ func (o *Operator) GetPersistentStorage(ctx context.Context, key ops.SiteKey) (s
 	}
 	return storage.PersistentStorageFromNDMConfig(ndmConfig), nil
 }
+
+// UpdatePersistentStorage updates cluster persistent storage configuration.
+func (o *Operator) UpdatePersistentStorage(ctx context.Context, req ops.UpdatePersistentStorageRequest) error {
+	client, err := o.GetKubeClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cm, err := client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Get(
+		constants.OpenEBSNDMMap, metav1.GetOptions{})
+	if err != nil {
+		return rigging.ConvertError(err)
+	}
+	ndmConfig, err := storage.NDMConfigFromConfigMap(cm)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ndmConfig.Apply(req.Resource)
+	cm, err = ndmConfig.ToConfigMap()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Update(cm)
+	if err != nil {
+		return rigging.ConvertError(err)
+	}
+	return nil
+}

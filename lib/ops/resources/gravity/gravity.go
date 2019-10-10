@@ -242,6 +242,19 @@ func (r *Resources) Create(ctx context.Context, req resources.CreateRequest) err
 	case storage.KindRuntimeEnvironment, storage.KindClusterConfiguration:
 		err := r.ClusterOperationHandler.UpdateResource(req)
 		return trace.Wrap(err)
+	case storage.KindPersistentStorage:
+		ps, err := storage.UnmarshalPersistentStorage(req.Resource.Raw)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = r.Operator.UpdatePersistentStorage(ctx, ops.UpdatePersistentStorageRequest{
+			SiteKey:  req.SiteKey,
+			Resource: ps,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.Println("Updated persistent storage configuration")
 	case "":
 		return trace.BadParameter("missing resource kind")
 	default:

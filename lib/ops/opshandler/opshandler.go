@@ -275,6 +275,7 @@ func NewWebHandler(cfg WebHandlerConfig) (*WebHandler, error) {
 
 	// persistent storage configuration
 	h.GET("/portal/v1/accounts/:account_id/sites/:site_domain/persistentstorage", h.needsAuth(h.getPersistentStorage))
+	h.PUT("/portal/v1/accounts/:account_id/sites/:site_domain/persistentstorage", h.needsAuth(h.updatePersistentStorage))
 
 	// validation
 	h.POST("/portal/v1/accounts/:account_id/sites/:site_domain/validation/remoteaccess", h.needsAuth(h.validateRemoteAccess))
