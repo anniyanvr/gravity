@@ -138,7 +138,7 @@ func (c *openEBSControl) GetNDMConfig() (*storage.NDMConfig, error) {
 
 // UpdateNDMConfig updates node device manager configuration.
 func (c *openEBSControl) UpdateNDMConfig(config *storage.NDMConfig) error {
-	cm, err = config.ToConfigMap()
+	cm, err := config.ToConfigMap()
 	if err != nil {
 		return trace.Wrap(err)
 	}
