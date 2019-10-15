@@ -86,7 +86,8 @@ func (r *openebs) Execute(ctx context.Context) error {
 func (r *openebs) Rollback(context.Context) error {
 	r.Progress.NextStep("Deleting OpenEBS configuration")
 	r.Info("Deleting OpenEBS configuration.")
-	err := r.Client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Delete(constants.OpenEBSNDMMap, &metav1.DeleteOptions{})
+	err := r.Client.CoreV1().ConfigMaps(defaults.OpenEBSNamespace).Delete(
+		constants.OpenEBSNDMConfigMap, &metav1.DeleteOptions{})
 	err = rigging.ConvertError(err)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

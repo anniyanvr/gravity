@@ -108,8 +108,8 @@ type OpenEBSFilters struct {
 }
 
 type OpenEBSFilter struct {
-	Include []string `json:"include"`
-	Exclude []string `json:"exclude"`
+	Include []string `json:"include,omitempty"`
+	Exclude []string `json:"exclude,omitempty"`
 }
 
 // GetName returns the resource name.
@@ -259,14 +259,14 @@ var PersistentStorageSpecV1Schema = `{
 }`
 
 type NDMConfig struct {
-	ProbeConfigs  []NDMProbe  `yaml:"probeconfigs"`
-	FilterConfigs []NDMFilter `yaml:"filterconfigs"`
+	ProbeConfigs  []*NDMProbe  `yaml:"probeconfigs"`
+	FilterConfigs []*NDMFilter `yaml:"filterconfigs"`
 }
 
 func (c *NDMConfig) getFilter(key string) *NDMFilter {
 	for _, filter := range c.FilterConfigs {
 		if filter.Key == key {
-			return &filter
+			return filter
 		}
 	}
 	return &NDMFilter{}
@@ -314,12 +314,12 @@ func (c *NDMConfig) SetDeviceIncludes(includes []string) {
 
 func DefaultNDMConfig() *NDMConfig {
 	return &NDMConfig{
-		ProbeConfigs: []NDMProbe{
+		ProbeConfigs: []*NDMProbe{
 			{Name: "udev probe", Key: "udev-probe", State: true},
 			{Name: "searchest probe", Key: "searchest-probe", State: false},
 			{Name: "smart probe", Key: "smart-probe", State: true},
 		},
-		FilterConfigs: []NDMFilter{
+		FilterConfigs: []*NDMFilter{
 			{
 				Name:    "os disk exclude filter",
 				Key:     "os-disk-exclude-filter",
@@ -374,7 +374,7 @@ func (c *NDMConfig) ToConfigMap() (*v1.ConfigMap, error) {
 			APIVersion: metav1.SchemeGroupVersion.Version,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      constants.OpenEBSNDMMap,
+			Name:      constants.OpenEBSNDMConfigMap,
 			Namespace: defaults.OpenEBSNamespace,
 			Labels: map[string]string{
 				"openebs.io/component-name": "ndm-config",

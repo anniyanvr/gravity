@@ -24,10 +24,12 @@ import (
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
 	"github.com/gravitational/gravity/lib/ops"
+	"github.com/gravitational/gravity/lib/ops/events"
 	"github.com/gravitational/gravity/lib/storage"
 
 	"github.com/gravitational/rigging"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -52,6 +54,7 @@ func (o *Operator) UpdatePersistentStorage(ctx context.Context, req ops.UpdatePe
 	if o.cfg.OpenEBS == nil {
 		return trace.BadParameter("persistent storage is not configured")
 	}
+	// TODO: Add audit event.
 	ndmConfig, err := o.cfg.OpenEBS.GetNDMConfig()
 	if err != nil {
 		return trace.Wrap(err)
@@ -61,6 +64,7 @@ func (o *Operator) UpdatePersistentStorage(ctx context.Context, req ops.UpdatePe
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	events.Emit(ctx, o, events.PersistentStorageUpdated)
 	err = o.cfg.OpenEBS.RestartNDM()
 	if err != nil {
 		return trace.Wrap(err)
@@ -83,8 +87,12 @@ type openEBSControl struct {
 	cm corev1.ConfigMapInterface
 	// ds is daemon set interface in the configured namespace.
 	ds appsv1.DaemonSetInterface
-	// name is the node device manager config map name.
-	name string
+	// cmName is the node device manager config map name.
+	cmName string
+	// dsName if the node device manager daemon set name.
+	dsName string
+	// FieldLogger is used for logging.
+	logrus.FieldLogger
 }
 
 // OpenEBSConfig is the OpenEBS controller configuration.
@@ -93,8 +101,10 @@ type OpenEBSConfig struct {
 	Client *kubernetes.Clientset
 	// Namespace is the namespace where OpenEBS components reside.
 	Namespace string
-	// Name is the name of the config map with node device manager configuration.
-	Name string
+	// ConfigMapName is the name of the config map with node device manager configuration.
+	ConfigMapName string
+	// DaemonSetName is the name of the node device manager daemon set.
+	DaemonSetName string
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -105,8 +115,11 @@ func (c *OpenEBSConfig) CheckAndSetDefaults() error {
 	if c.Namespace == "" {
 		c.Namespace = defaults.OpenEBSNamespace
 	}
-	if c.Name == "" {
-		c.Name = constants.OpenEBSNDMMap
+	if c.ConfigMapName == "" {
+		c.ConfigMapName = constants.OpenEBSNDMConfigMap
+	}
+	if c.DaemonSetName == "" {
+		c.DaemonSetName = constants.OpenEBSNDMDaemonSet
 	}
 	return nil
 }
@@ -117,15 +130,17 @@ func NewOpenEBSControl(config OpenEBSConfig) (*openEBSControl, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &openEBSControl{
-		cm:   config.Client.Core().ConfigMaps(config.Namespace),
-		ds:   config.Client.Apps().DaemonSets(config.Namespace),
-		name: config.Name,
+		FieldLogger: logrus.WithField(trace.Component, "openebs"),
+		cm:          config.Client.Core().ConfigMaps(config.Namespace),
+		ds:          config.Client.Apps().DaemonSets(config.Namespace),
+		cmName:      config.ConfigMapName,
+		dsName:      config.DaemonSetName,
 	}, nil
 }
 
 // GetNDMConfig returns node device manager configuration.
 func (c *openEBSControl) GetNDMConfig() (*storage.NDMConfig, error) {
-	cm, err := c.cm.Get(c.name, metav1.GetOptions{})
+	cm, err := c.cm.Get(c.cmName, metav1.GetOptions{})
 	if err != nil {
 		return nil, rigging.ConvertError(err)
 	}
@@ -142,6 +157,7 @@ func (c *openEBSControl) UpdateNDMConfig(config *storage.NDMConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	c.Infof("Updating NDM config map: %v.", cm.Data)
 	_, err = c.cm.Update(cm)
 	if err != nil {
 		return rigging.ConvertError(err)
@@ -151,7 +167,8 @@ func (c *openEBSControl) UpdateNDMConfig(config *storage.NDMConfig) error {
 
 // RestartNDM restarts node device manager pods.
 func (c *openEBSControl) RestartNDM() error {
-	_, err := c.ds.Patch(c.name, types.StrategicMergePatchType, formatRestartPatch())
+	c.Info("Restarting NDM daemon set.")
+	_, err := c.ds.Patch(c.dsName, types.StrategicMergePatchType, formatRestartPatch())
 	if err != nil {
 		return rigging.ConvertError(err)
 	}
